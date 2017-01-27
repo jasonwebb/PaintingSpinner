@@ -10,7 +10,7 @@
  * Live data is outputted over serial for use with the Arduino
  * IDE's Serial Plotter tool, which graphs data in the following
  * format:
- * {current average} {maximum so far} {minimum so far}
+ * {current average} {highest value seen so far} {lowest value seeo so far}
  * 
  * Github repo: https://github.com/jasonwebb/PaintingSpinner
  * Author website: http://jason-webb.info
@@ -31,8 +31,8 @@ int sensorAverage = 0;
 int sensorUpdateInterval = 10;  // in milliseconds
 unsigned int sensorLastUpdate = 0;
 
-int sensorMinValue = 1023;     // represents furthest distance from sensor
-int sensorMaxValue = 0;  // represents closest distance to sensor
+int sensorLowestValue = 1023;  // represents furthest distance from sensor
+int sensorHighestValue = 0;    // represents closest distance to sensor
 
 
 /***************************************
@@ -89,22 +89,20 @@ void updateSensor() {
   
     // Calculate new average
     sensorAverage = sensorTotal / sensorNumSamples;
-  
-    if(DEBUG)
-      Serial.print(sensorAverage);
 
     // Update max and min values ---------------------------
-    if(sensorAverage > sensorMaxValue)
-      sensorMaxValue = sensorAverage;
+    if(sensorAverage > sensorHighestValue)
+      sensorHighestValue = sensorAverage;
 
-    if(sensorAverage < sensorMinValue)
-      sensorMinValue = sensorAverage;
+    if(sensorHighestValue < sensorLowestValue)
+      sensorLowestValue = sensorAverage;
 
     if(DEBUG) {
+      Serial.print(sensorAverage);
       Serial.print(" ");
-      Serial.print(sensorMaxValue);
+      Serial.print(sensorLowestValue);
       Serial.print(" ");
-      Serial.println(sensorMinValue);
+      Serial.println(sensorHighestValue);
     }
 
     sensorLastUpdate = millis();
