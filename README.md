@@ -9,7 +9,7 @@ Arduino-based hardware platform for interactively spinning a painting using a DC
 - A [Sharp 2Y0A02 distance sensor](https://www.sparkfun.com/products/8958)
 - Salvaged bicycle parts (chain, 26t and 14t gears)
 - Various sizes of [scrap wood](https://github.com/jasonwebb/PaintingSpinner/blob/master/BOMs/Wood%20cutlist.csv)
-- Various custom designed [3D printed parts](https://github.com/jasonwebb/PaintingSpinner/tree/master/CAD)
+- Various custom [3D printed parts](https://github.com/jasonwebb/PaintingSpinner/tree/master/CAD) designed in Fusion 360
 - Various wood screws and angle brackets
 
 ## Electronics architecture
@@ -17,4 +17,4 @@ Arduino-based hardware platform for interactively spinning a painting using a DC
 
 ## Mechanical assembly
 
-![Assembly](docs/assembly-iso.png)
+![Assembly](docs/assembly/assembly-iso.png)
