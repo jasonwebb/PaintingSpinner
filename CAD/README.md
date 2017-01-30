@@ -1,7 +1,8 @@
 ## Arduino stack standoffs
-- Long standoffs (green) go between motor shield and audio shield
-- Short standoffs (yellow) go between audio shield and Arduino
-- Red washers go at very top of bolt
+- Intended to guarantee uniform and reliable spacing between shields, reducing potential of shorts or disconnections due to tilting during use.
+- Long standoffs (green) go between motor shield and audio shield.
+- Short standoffs (yellow) go between audio shield and Arduino.
+- Red washers go at very top of bolt.
 
 ![Arduino stack standoffs](../docs/parts/Arduino-stack-standoffs.png)
 
@@ -14,6 +15,7 @@
 ## Compound pulley flange
 - One side (side with four arms) mounts to back of painting or piece to spin.
 - Other side fits a 14t bicycle gear with particular hole pattern using M3 bolts.
+   - Hole pattern is rotated to make it easier for a screwdriver to reach bolt heads for tightening / racheting.
 - Includes a 1/2" wide recessed ridge meant to guide rotation of entire component along PVC inset on "Axle support bracket"
 - A 1" wooden dowel goes through center hole, optionally fastened with small wood screw within recessed ridge. Make sure the head of the screw stays below diameter of this ridge to avoid interfering with rotation.
 
@@ -31,6 +33,12 @@
 - Uses M3 bolts (with lock nuts under adapter) to connect adapter to Universal Mounting Hub.
 
 ![Large pulley (26t) to Universal Mounting Hub adapter](../docs/parts/large-pulley-26t-to-universal-mounting-hub-adapter.png)
+
+## Motor clamp
+- Snuggly fits around gearmotor to help hold it in place. Use two wood screws to get desired level of tension.
+- I recommend only using one directly over the gearbox, NOT the motor, to allow for better heat dissipation.
+
+![Motor clamp](../docs/parts/motor-clamp.png)
 
 ## Small pulley (14t) flange
 - Center hole fits 1" wood dowel.
