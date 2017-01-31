@@ -30,7 +30,7 @@ const boolean DOWN = 1;
 
 boolean rampDirection = UP;
 
-int motorUpdateInterval = 5;  // in milliseconds
+int motorUpdateInterval = 50;  // in milliseconds
 unsigned int motorLastUpdate = 0;
 
 /**************************************

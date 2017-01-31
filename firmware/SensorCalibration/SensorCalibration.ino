@@ -20,6 +20,8 @@
 * Distance sensor parameters
 ********************************/
 byte sensorPin = A0;
+byte sensorEnableSwitchPin = A1;
+byte sensorEnabledLEDPin = A3;
 
 // Rolling average variables
 const int sensorNumSamples = 50;
@@ -28,7 +30,9 @@ int sensorSampleIndex = 0;
 int sensorTotal = 0;
 int sensorAverage = 0;
 
-int sensorUpdateInterval = 10;  // in milliseconds
+boolean sensorEnabled, sensorEnabledNextState;
+
+int sensorUpdateInterval = 10;      // in milliseconds
 unsigned int sensorLastUpdate = 0;
 
 int sensorLowestValue = 1023;  // represents furthest distance from sensor
@@ -51,13 +55,35 @@ void setup() {
 
   // Initialize sensor --------------------------------------------
   pinMode(sensorPin, INPUT);
+  pinMode(sensorEnableSwitchPin, INPUT);
+  pinMode(sensorEnabledLEDPin, OUTPUT);
+
+  // Activate internal pull-up for enable switch
+  digitalWrite(sensorEnableSwitchPin, HIGH);
+
+  // Set up initial enable state
+  sensorEnabled = digitalRead(sensorEnableSwitchPin);
+  digitalWrite(sensorEnabledLEDPin, sensorEnabled);
+
+  // Get initial switch state
+  updateSensorEnabledSwitch();
 
   // Initialize sample buffer to empty values
   for(int i = 0; i < sensorNumSamples; i++)
     sensorSamples[i] = 0;
 
-  if(DEBUG)
+  if(DEBUG) {
     Serial.println("Distance sensor ready");
+
+    switch(sensorEnabled) {
+      case HIGH:
+        Serial.println("Distance sensing is enabled");
+        break;
+      case LOW:
+        Serial.println("Distance sensing is disabled");
+        break;
+    }
+  }
 }
 
 void loop() {
@@ -71,6 +97,9 @@ void loop() {
 ***************************************************/
 void updateSensor() {  
   if(currentTime > sensorLastUpdate + sensorUpdateInterval) {
+    // Check and update enable switch
+    updateSensorEnabledSwitch();
+    
     // Update rolling average of samples ---------------------------    
     // Toss out latest sample
     sensorTotal -= sensorSamples[sensorSampleIndex];
@@ -97,7 +126,7 @@ void updateSensor() {
     if(sensorHighestValue < sensorLowestValue)
       sensorLowestValue = sensorAverage;
 
-    if(DEBUG) {
+    if(DEBUG && sensorEnabled) {
       Serial.print(sensorAverage);
       Serial.print(" ");
       Serial.print(sensorLowestValue);
@@ -106,6 +135,28 @@ void updateSensor() {
     }
 
     sensorLastUpdate = millis();
+  }
+}
+
+void updateSensorEnabledSwitch() {
+  // Check enable switch
+  sensorEnabledNextState = digitalRead(sensorEnableSwitchPin);
+
+  if(sensorEnabledNextState != sensorEnabled) {
+    if(DEBUG) {
+      switch(sensorEnabledNextState) {
+        case HIGH:
+          digitalWrite(sensorEnabledLEDPin, HIGH);
+          Serial.println("Turning on distance sensing");
+          break;
+        case LOW:
+          digitalWrite(sensorEnabledLEDPin, LOW);
+          Serial.println("Turning off distance sensing");
+          break;
+      }
+    }
+    
+    sensorEnabled = sensorEnabledNextState;
   }
 }
 
