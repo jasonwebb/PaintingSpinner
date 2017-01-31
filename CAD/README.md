@@ -46,3 +46,9 @@
 - Meant to accommodate M3 lock nuts with enough clearance to allow for a ratchet for easier tightening.
 
 ![Small pulley (14t) flange](../docs/parts/small-pulley-14t-flange.png)
+
+## Small pulley (14t) to Universal Mounting Hub adapter
+- Uses M3 bolts for all holes.
+- Allows for use of drive pulley matching output pulley for better torque (at lower speed).
+
+![Small pulley (14t) to Universal Mounting Hub Adapter](../docs/parts/small-pulley-14t-to-universal-mounting-hub-adapter.png)
