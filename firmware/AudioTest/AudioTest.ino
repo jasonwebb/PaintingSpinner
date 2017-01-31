@@ -2,6 +2,10 @@
  * PaintingSpinner - audio shield test
  * Built by Jason Webb for artist Nadia Shinkunas
  * 
+ * DESCRIPTION:
+ * Ramps up and down volume while continuously playing audio
+ * file. 
+ * 
  * Github repo: https://github.com/jasonwebb/PaintingSpinner
  * Author website: http://jason-webb.info
  ***************************************************************/
@@ -17,8 +21,8 @@ byte audioRxPin = 8;
 byte audioTxPin = 9;
 
 byte audioTrackNumber = 1;
-byte audioVolume = 0;     // maximum is 255
-byte audioMaxVolume = 30;
+byte audioVolume = 0;
+byte audioMaxVolume = 30;   // seems to be a hard limit, either of the library, chip or physics
 byte audioVolumeStep = 1;
 
 unsigned int audioLastUpdate = 0;
@@ -76,6 +80,9 @@ void loop() {
         rampDirection = UP;
     }
 
+    // Update the volume
+    // WARNING: This command is slow and prone to crashing at high speeds. 
+    //          Keep the update interval high (~500ms) to prevent crashes.
     audio.setVolume(audioVolume);
 
     if(DEBUG)
