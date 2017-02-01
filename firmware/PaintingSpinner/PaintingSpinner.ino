@@ -8,108 +8,232 @@
 
 #include <CytronEZMP3.h>
 
-/** Motor parameters *************/
+/*******************************
+* Motor parameters
+********************************/
 const byte CW = LOW;
 const byte CCW = HIGH;
 
-byte motorDirection = CW;
+byte motorDirection = CCW;
 
 byte motorPwmPin = 3;
 byte motorDirPin = 2;
 
-int motorSpeed = 0;
+int motorCurrentSpeed = 0;
+int motorTargetSpeed = 0;
+int motorMinSpeed = 50;
 int motorMaxSpeed = 255;
 int motorAcceleration = 1;
 
-boolean motorAtSpeed = false;
+int motorUpdateInterval = 50;     // in milliseconds
+int motorRandomUpdateInterval;
+int motorRandomUpdateLower = 5000,  // 5s
+    motorRandomUpdateUpper = 20000; // 20s
 
-/** MP3 shield parameters ********/
+unsigned int motorLastUpdate = 0; // in milliseconds
+unsigned int motorLastRandomUpdate = 0;
+
+/*******************************
+* Audio shield parameters
+********************************/
 CytronEZMP3 audio;
 
 byte audioRxPin = 8;
 byte audioTxPin = 9;
 
 byte audioTrackNumber = 1;
+byte audioVolume = 0;
+byte audioMaxVolume = 30; // seems to be a hard limit either of the library, chip or physics
 
-/** Sensor parameters ************/
+unsigned int audioLastUpdate = 0;
+unsigned int audioUpdateInterval = 500; // Cytron MP3 library/chip is slow and prone to crashing, so keep updates low
+
+
+/*******************************
+* Distance sensor parameters
+********************************/
 byte sensorPin = A0;
+byte sensorEnablePin = A1;
+byte sensorEnableSwitchPin = A1;
+byte sensorEnabledLEDPin = A3;
 
-int sensorValue = 0;
-byte sensorTriggerThreshold = 100;  // need to refine
-boolean sensorTriggered = false;
+// Rolling average variables
+const int sensorNumSamples = 50;
+int sensorSamples[sensorNumSamples];
+int sensorSampleIndex = 0;
+int sensorTotal = 0;
+int sensorAverage = 0;
 
-int sensorCheckInterval = 500;  // in milliseconds
-int sensorLastCheck = 0;
+boolean sensorEnabled, sensorEnabledNextState;
 
-/** Debugging mode ***************/
+int sensorUpdateInterval = 10; // in milliseconds
+unsigned int sensorLastUpdate = 0;    // in milliseconds
+
+int sensorLowestValue = 50;   // represents furthest distance from sensor
+int sensorHighestValue = 516;  // represents closest distance to sensor
+
+int sensorMinimumThreshold = 50;  // filter out sensor noise to allow motor to completely stop when people leave
+
+
+/**************************************
+* General state flags and variables
+***************************************/
 boolean DEBUG = true;
+unsigned int currentTime = 0;
 
 
 void setup() {
-  // Initialize debug mode ---------------------------------------
-  if (DEBUG)
+  // Initialize debug mode ----------------------------------------
+  if (DEBUG) {
     Serial.begin(9600);
+    while(!Serial);
+  }
 
-  // Initialize audio shield
+  // Initialize motor driver shield -------------------------------
+  pinMode(motorPwmPin, OUTPUT);
+  pinMode(motorDirPin, OUTPUT);
+
+  analogWrite(motorPwmPin, motorCurrentSpeed);  // Should be 0
+  digitalWrite(motorDirPin, motorDirection);
+
+  if(DEBUG)
+    Serial.println("Motor ready");
+
+
+  // Initialize audio shield --------------------------------------
   if (!audio.begin(audioRxPin, audioTxPin)) {
     if (DEBUG)
       Serial.println("Failed to initialize audio shield");
 
     while (1);
   }
-  audio.setVolume(30);
+  audio.setVolume(audioVolume);
 
-    if(DEBUG)
-      Serial.println("Audio shield ready");
+  if(DEBUG)
+    Serial.println("Audio shield ready");
       
 
   // Initialize sensor --------------------------------------------
   pinMode(sensorPin, INPUT);
+  pinMode(sensorEnableSwitchPin, INPUT);
+  pinMode(sensorEnabledLEDPin, OUTPUT);
 
-    if(DEBUG)
-      Serial.println("Distance sensor ready");
-      
+  // Activate internal pull-up for enable switch
+  digitalWrite(sensorEnableSwitchPin, HIGH);
 
-  // Initialize motor driver shield -------------------------------
-  pinMode(motorPwmPin, OUTPUT);
-  pinMode(motorDirPin, OUTPUT);
+  // Set up initial enable state
+  sensorEnabled = digitalRead(sensorEnableSwitchPin);
+  digitalWrite(sensorEnabledLEDPin, sensorEnabled);
 
-  analogWrite(motorPwmPin, motorSpeed);
-  digitalWrite(motorDirPin, motorDirection);
+  // Get initial switch state
+  updateSensorEnabledSwitch();
 
-    if(DEBUG)
-      Serial.print("Spinning up motor ... ");
+  // Initialize sample buffer to empty values
+  for(int i = 0; i < sensorNumSamples; i++)
+    sensorSamples[i] = 0;
+
+  if(DEBUG) {
+    Serial.println("Distance sensor ready");
+
+    switch(sensorEnabled) {
+      case HIGH:
+        Serial.println("Distance sensing is enabled");
+        break;
+      case LOW:
+        Serial.println("Distance sensing is disabled");
+        break;
+    }
+  }
 }
 
 void loop() {
-  // Ramp up motor speed
-  if (motorSpeed < motorMaxSpeed) {
-    motorSpeed += motorAcceleration;
-    analogWrite(motorPwmPin, motorSpeed);
-  } else {
-    motorAtSpeed = true;
+  currentTime = millis();
 
-    if(DEBUG)
-      Serial.println("done");
+  // Check for and process new sensor data for use in upcoming logic
+  updateSensor();
+
+  if(currentTime > motorLastUpdate + motorUpdateInterval) {
+    // If sensor is enabled, map live sensor data to target motor speed
+    if(sensorEnabled) {      
+      if(sensorAverage > sensorMinimumThreshold)
+        motorTargetSpeed = constrain(map(sensorAverage, sensorLowestValue, sensorHighestValue, motorMinSpeed, motorMaxSpeed), motorMinSpeed, motorMaxSpeed);
+      else
+        motorTargetSpeed = 0;
+
+    // If sensor is NOT enabled, generate new random target speeds at random intervals
+    } else {
+      // Choose random target speed and new random update interval
+      if(currentTime > motorLastRandomUpdate + motorRandomUpdateInterval) {
+        motorTargetSpeed = (int)random(motorMinSpeed, motorMaxSpeed);
+        motorRandomUpdateInterval = random(motorRandomUpdateLower, motorRandomUpdateUpper);
+
+        motorLastRandomUpdate = currentTime;
+      }
+    }
+
+    // Adjust current speed to "chase" target speed, within bounds
+    if( (motorCurrentSpeed < motorTargetSpeed) && (motorCurrentSpeed < motorMaxSpeed) )
+        motorCurrentSpeed += motorAcceleration;
+    else if( (motorCurrentSpeed > motorTargetSpeed) && (motorCurrentSpeed > 0) )
+        motorCurrentSpeed -= motorAcceleration;
+  
+    // Push motor speed to motor shield
+    analogWrite(motorPwmPin, motorCurrentSpeed);
+
+    motorLastUpdate = millis();
   }
+}
 
-  // Look for and process sensor trigger events once motor is up to speed, so long as no audio is currently playing
-  if(motorAtSpeed && !audio.isPlaying()) {
-    // Check sensor for trigger event
-    if(millis() >= sensorLastCheck + sensorCheckInterval) {
-      sensorValue = analogRead(sensorPin);
+/**************************************************
+* Update sensor data
+***************************************************/
+void updateSensor() {
+  if(currentTime > sensorLastUpdate + sensorUpdateInterval) {
+    // Check and update enable switch
+    updateSensorEnabledSwitch();
+    
+    // Update rolling average of samples ---------------------------    
+    // Pop latest sample from total
+    sensorTotal -= sensorSamples[sensorSampleIndex];
+  
+    // Get new sample from the sensor and store it in buffer
+    sensorSamples[sensorSampleIndex] = analogRead(sensorPin);
+  
+    // Push latest sample to total
+    sensorTotal += sensorSamples[sensorSampleIndex];
+  
+    // Advance or roll over buffer index
+    if(sensorSampleIndex < sensorNumSamples - 1)
+      sensorSampleIndex++;
+    else
+      sensorSampleIndex = 0;
+  
+    // Calculate new average
+    sensorAverage = sensorTotal / sensorNumSamples;
 
-      if(sensorValue >= sensorTriggerThreshold)
-        sensorTriggered = true;
+    sensorLastUpdate = millis();
+  }
+}
+
+void updateSensorEnabledSwitch() {
+  // Check enable switch
+  sensorEnabledNextState = digitalRead(sensorEnableSwitchPin);
+
+  if(sensorEnabledNextState != sensorEnabled) {
+    if(DEBUG) {
+      switch(sensorEnabledNextState) {
+        case HIGH:
+          digitalWrite(sensorEnabledLEDPin, HIGH);
+          motorRandomUpdateInterval = random(motorRandomUpdateLower, motorRandomUpdateUpper);
+          Serial.println("Turning on distance sensing");
+          break;
+        case LOW:
+          digitalWrite(sensorEnabledLEDPin, LOW);
+          Serial.println("Turning off distance sensing");
+          break;
+      }
     }
-
-    // If triggered, play MP3 file
-    if(sensorTriggered) {
-      if(DEBUG)
-        Serial.println("Sensor triggered - playing audio file");
-
-      audio.playTrack(audioTrackNumber);
-      sensorTriggered = false;
-    }
+    
+    sensorEnabled = sensorEnabledNextState;
   }
 }
