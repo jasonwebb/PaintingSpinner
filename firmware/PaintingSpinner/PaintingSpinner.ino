@@ -11,10 +11,10 @@
 /*******************************
 * Motor parameters
 ********************************/
-const byte CW = LOW;
-const byte CCW = HIGH;
+const byte CW = HIGH;
+const byte CCW = LOW;
 
-byte motorDirection = CCW;
+byte motorDirection = CW;
 
 byte motorPwmPin = 3;
 byte motorDirPin = 2;
@@ -25,13 +25,15 @@ int motorMinSpeed = 50;
 int motorMaxSpeed = 255;
 int motorAcceleration = 1;
 
-int motorUpdateInterval = 50;     // in milliseconds
+int motorUpdateInterval = 100;  // (in ms) faster updates mean faster acceleration, so keep them slow 
+                                // (high values) to prevent too much torque on motor gears.
 int motorRandomUpdateInterval;
 int motorRandomUpdateLower = 5000,  // 5s
     motorRandomUpdateUpper = 20000; // 20s
 
 unsigned int motorLastUpdate = 0; // in milliseconds
 unsigned int motorLastRandomUpdate = 0;
+
 
 /*******************************
 * Audio shield parameters
@@ -42,7 +44,7 @@ byte audioRxPin = 8;
 byte audioTxPin = 9;
 
 byte audioTrackNumber = 1;
-byte audioVolume = 0;
+byte audioVolume = 30;
 byte audioMaxVolume = 30; // seems to be a hard limit either of the library, chip or physics
 
 unsigned int audioLastUpdate = 0;
@@ -66,11 +68,11 @@ int sensorAverage = 0;
 
 boolean sensorEnabled, sensorEnabledNextState;
 
-int sensorUpdateInterval = 10; // in milliseconds
-unsigned int sensorLastUpdate = 0;    // in milliseconds
+int sensorUpdateInterval = 10;      // in milliseconds
+unsigned int sensorLastUpdate = 0;  // in milliseconds
 
 int sensorLowestValue = 50;   // represents furthest distance from sensor
-int sensorHighestValue = 516;  // represents closest distance to sensor
+int sensorHighestValue = 516; // represents closest distance to sensor
 
 int sensorMinimumThreshold = 50;  // filter out sensor noise to allow motor to completely stop when people leave
 
@@ -137,10 +139,10 @@ void setup() {
 
     switch(sensorEnabled) {
       case HIGH:
-        Serial.println("Distance sensing is enabled");
+        Serial.println("Distance sensing is enabled - motor speed now mapped to distance");
         break;
       case LOW:
-        Serial.println("Distance sensing is disabled");
+        Serial.println("Distance sensing is disabled - motor speed now randomized at random intervals");
         break;
     }
   }
@@ -150,43 +152,32 @@ void loop() {
   currentTime = millis();
 
   // Check for and process new sensor data for use in upcoming logic
+  // - Takes readings from the distance sensor (if enabled)
+  // - Checks the sensor enable switch for changes
   updateSensor();
 
-  if(currentTime > motorLastUpdate + motorUpdateInterval) {
-    // If sensor is enabled, map live sensor data to target motor speed
-    if(sensorEnabled) {      
-      if(sensorAverage > sensorMinimumThreshold)
-        motorTargetSpeed = constrain(map(sensorAverage, sensorLowestValue, sensorHighestValue, motorMinSpeed, motorMaxSpeed), motorMinSpeed, motorMaxSpeed);
-      else
-        motorTargetSpeed = 0;
+  // Update motor speed to chase a target speed
+  // - If sensor is enabled, target speed will follow distance sensor
+  // - If sensor is NOT enabled, target speed will be randomized at random intervals
+  updateMotor();
 
-    // If sensor is NOT enabled, generate new random target speeds at random intervals
-    } else {
-      // Choose random target speed and new random update interval
-      if(currentTime > motorLastRandomUpdate + motorRandomUpdateInterval) {
-        motorTargetSpeed = (int)random(motorMinSpeed, motorMaxSpeed);
-        motorRandomUpdateInterval = random(motorRandomUpdateLower, motorRandomUpdateUpper);
+  // Update audio
+  // - Continuously triggers the same sample
+  if(currentTime > audioLastUpdate + audioUpdateInterval) {
+    if(!audio.isPlaying()) {
+      audio.playTrack(audioTrackNumber);
 
-        motorLastRandomUpdate = currentTime;
-      }
+      if(DEBUG)
+        Serial.println("Triggering audio file");
     }
-
-    // Adjust current speed to "chase" target speed, within bounds
-    if( (motorCurrentSpeed < motorTargetSpeed) && (motorCurrentSpeed < motorMaxSpeed) )
-        motorCurrentSpeed += motorAcceleration;
-    else if( (motorCurrentSpeed > motorTargetSpeed) && (motorCurrentSpeed > 0) )
-        motorCurrentSpeed -= motorAcceleration;
-  
-    // Push motor speed to motor shield
-    analogWrite(motorPwmPin, motorCurrentSpeed);
-
-    motorLastUpdate = millis();
   }
 }
 
-/**************************************************
-* Update sensor data
-***************************************************/
+/******************************************************************************
+* Update sensor data buffer and calculated values
+*   - Takes readings from the distance sensor (if enabled)  
+*   - Checks the distance sensor enable switch for changes
+******************************************************************************/
 void updateSensor() {
   if(currentTime > sensorLastUpdate + sensorUpdateInterval) {
     // Check and update enable switch
@@ -215,25 +206,73 @@ void updateSensor() {
   }
 }
 
+/******************************************************************************
+* Check for and process any changes to the "enable" switch
+*   - If a change is detected, some prep work needs to happen
+******************************************************************************/
 void updateSensorEnabledSwitch() {
-  // Check enable switch
+  // Check enable switch pin
   sensorEnabledNextState = digitalRead(sensorEnableSwitchPin);
 
   if(sensorEnabledNextState != sensorEnabled) {
-    if(DEBUG) {
-      switch(sensorEnabledNextState) {
-        case HIGH:
-          digitalWrite(sensorEnabledLEDPin, HIGH);
-          motorRandomUpdateInterval = random(motorRandomUpdateLower, motorRandomUpdateUpper);
+    switch(sensorEnabledNextState) {
+      case HIGH:
+        digitalWrite(sensorEnabledLEDPin, HIGH);
+        motorRandomUpdateInterval = (int)random(motorRandomUpdateLower, motorRandomUpdateUpper);
+
+        if(DEBUG)
           Serial.println("Turning on distance sensing");
-          break;
-        case LOW:
-          digitalWrite(sensorEnabledLEDPin, LOW);
+
+        break;
+        
+      case LOW:
+        digitalWrite(sensorEnabledLEDPin, LOW);
+
+        if(DEBUG)
           Serial.println("Turning off distance sensing");
-          break;
-      }
+
+        break;
     }
     
     sensorEnabled = sensorEnabledNextState;
+  }
+}
+
+/*******************************************************************************************
+* Update motor target speed and current speed
+*   - If sensor is enabled, target speed will follow distance sensor
+*   - If sensor is NOT enabled, target speed will be randomized at random intervals
+*   - It is very important to keep accelerations low to prevent too much torque on motor
+********************************************************************************************/
+void updateMotor() {
+  if(currentTime > motorLastUpdate + motorUpdateInterval) {
+    // If sensor is enabled, map live sensor data to target motor speed
+    if(sensorEnabled) {      
+      if(sensorAverage > sensorMinimumThreshold)
+        motorTargetSpeed = constrain(map(sensorAverage, sensorLowestValue, sensorHighestValue, motorMinSpeed, motorMaxSpeed), motorMinSpeed, motorMaxSpeed);
+      else
+        motorTargetSpeed = 0;
+
+    // If sensor is NOT enabled, generate new random target speeds at random intervals
+    } else {
+      // Choose random target speed and new random update interval
+      if(currentTime > motorLastRandomUpdate + motorRandomUpdateInterval) {
+        motorTargetSpeed = (int)random(motorMinSpeed, motorMaxSpeed);
+        motorRandomUpdateInterval = (int)random(motorRandomUpdateLower, motorRandomUpdateUpper);
+
+        motorLastRandomUpdate = currentTime;
+      }
+    }
+
+    // Adjust current speed to "chase" target speed, within bounds
+    if( (motorCurrentSpeed < motorTargetSpeed) && (motorCurrentSpeed < motorMaxSpeed) )
+        motorCurrentSpeed += motorAcceleration;
+    else if( (motorCurrentSpeed > motorTargetSpeed) && (motorCurrentSpeed > 0) )
+        motorCurrentSpeed -= motorAcceleration;
+  
+    // Push motor speed to motor shield
+    analogWrite(motorPwmPin, motorCurrentSpeed);
+
+    motorLastUpdate = millis();
   }
 }
