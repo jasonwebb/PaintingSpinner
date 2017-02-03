@@ -20,6 +20,7 @@ CytronEZMP3 audio;
 byte audioRxPin = 8;
 byte audioTxPin = 9;
 
+byte audioTracksTotal;
 byte audioTrackNumber = 1;
 byte audioVolume = 0;
 byte audioMaxVolume = 30;   // seems to be a hard limit, either of the library, chip or physics
@@ -53,7 +54,8 @@ void setup() {
 
     while (1);
   }
-  audio.setVolume(audioVolume);
+  audio.setVolume(30);
+  audioTracksTotal = audio.getTotalFiles();
 
   if(DEBUG)
     Serial.println("Audio shield ready");
@@ -62,12 +64,14 @@ void setup() {
 void loop() {
   currentTime = millis();
 
-  // Continuously trigger audio file ----------------------------
-  if(!audio.isPlaying())
-    audio.playTrack(audioTrackNumber);
-
   // Ramp up and down volume -------------------------------------
   if(currentTime > audioLastUpdate + audioUpdateInterval) {
+    // Continuously trigger audio file
+    if(!audio.isPlaying()) {
+      audioTrackNumber = (int)random(1,audioTracksTotal);
+      audio.playTrack(audioTrackNumber);
+    }
+        
     if(rampDirection == UP) {
       if(audioVolume <= audioMaxVolume - audioVolumeStep)
         audioVolume += audioVolumeStep;
@@ -83,7 +87,7 @@ void loop() {
     // Update the volume
     // WARNING: This command is slow and prone to crashing at high speeds. 
     //          Keep the update interval high (~500ms) to prevent crashes.
-    audio.setVolume(audioVolume);
+//    audio.setVolume(audioVolume);
 
     if(DEBUG)
       Serial.println(audioVolume);

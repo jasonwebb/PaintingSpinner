@@ -54,7 +54,7 @@ void setup() {
   digitalWrite(motorDirPin, motorDirection);
 
   if(DEBUG)
-    Serial.print("Ramping up (CW) ...");
+    Serial.print("Ramping up (CW) ... ");
 }
 
 void loop() {

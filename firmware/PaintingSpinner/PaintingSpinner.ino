@@ -14,25 +14,28 @@
 const byte CW = HIGH;
 const byte CCW = LOW;
 
-byte motorDirection = CW;
+byte motorDirection = CCW;
 
 byte motorPwmPin = 3;
 byte motorDirPin = 2;
 
 int motorCurrentSpeed = 0;
 int motorTargetSpeed = 0;
-int motorMinSpeed = 50;
+int motorMinSpeed = 75;
 int motorMaxSpeed = 255;
 int motorAcceleration = 1;
 
-int motorUpdateInterval = 100;  // (in ms) faster updates mean faster acceleration, so keep them slow 
-                                // (high values) to prevent too much torque on motor gears.
-int motorRandomUpdateInterval;
-int motorRandomUpdateLower = 5000,  // 5s
-    motorRandomUpdateUpper = 20000; // 20s
+boolean motorEnabled = true;
 
-unsigned int motorLastUpdate = 0; // in milliseconds
-unsigned int motorLastRandomUpdate = 0;
+long motorUpdateInterval = 175;  // (in ms) faster updates mean faster acceleration, so keep them slow 
+                                // (high values) to prevent too much torque on motor gears.
+
+unsigned long motorRandomUpdateLower = 20 * 1000,
+              motorRandomUpdateUpper = 50 * 1000;
+unsigned long motorRandomUpdateInterval = 0;
+
+unsigned long motorLastUpdate = 0;
+unsigned long motorLastRandomUpdate = 0;
 
 
 /*******************************
@@ -44,18 +47,28 @@ byte audioRxPin = 8;
 byte audioTxPin = 9;
 
 byte audioTrackNumber = 1;
+byte audioTracksTotal;
+
 byte audioVolume = 30;
+byte audioMinVolume = 10;
 byte audioMaxVolume = 30; // seems to be a hard limit either of the library, chip or physics
 
+boolean audioEnabled = false;
+
+int audioUpdateInterval = 1000; // Cytron MP3 library/chip is slow and prone to crashing, so keep updates low
+
+unsigned int audioRandomUpdateLower = 10 * 1000,
+             audioRandomUpdateUpper = 30 * 1000;
+unsigned int audioRandomUpdateInterval = 0;
+
 unsigned int audioLastUpdate = 0;
-unsigned int audioUpdateInterval = 500; // Cytron MP3 library/chip is slow and prone to crashing, so keep updates low
+unsigned int audioLastRandomUpdate = 0;
 
 
 /*******************************
 * Distance sensor parameters
 ********************************/
 byte sensorPin = A0;
-byte sensorEnablePin = A1;
 byte sensorEnableSwitchPin = A1;
 byte sensorEnabledLEDPin = A3;
 
@@ -68,8 +81,8 @@ int sensorAverage = 0;
 
 boolean sensorEnabled, sensorEnabledNextState;
 
-int sensorUpdateInterval = 10;      // in milliseconds
-unsigned int sensorLastUpdate = 0;  // in milliseconds
+unsigned long sensorUpdateInterval = 10;
+unsigned long sensorLastUpdate = 0;
 
 int sensorLowestValue = 50;   // represents furthest distance from sensor
 int sensorHighestValue = 516; // represents closest distance to sensor
@@ -81,7 +94,7 @@ int sensorMinimumThreshold = 50;  // filter out sensor noise to allow motor to c
 * General state flags and variables
 ***************************************/
 boolean DEBUG = true;
-unsigned int currentTime = 0;
+unsigned long currentTime = 0;
 
 
 void setup() {
@@ -90,6 +103,9 @@ void setup() {
     Serial.begin(9600);
     while(!Serial);
   }
+
+  // Randomize random seed ----------------------------------------
+  randomSeed(analogRead(A5));
 
   // Initialize motor driver shield -------------------------------
   pinMode(motorPwmPin, OUTPUT);
@@ -109,7 +125,10 @@ void setup() {
 
     while (1);
   }
+  
   audio.setVolume(audioVolume);
+
+  audioTracksTotal = audio.getTotalFiles();
 
   if(DEBUG)
     Serial.println("Audio shield ready");
@@ -162,15 +181,10 @@ void loop() {
   updateMotor();
 
   // Update audio
-  // - Continuously triggers the same sample
-  if(currentTime > audioLastUpdate + audioUpdateInterval) {
-    if(!audio.isPlaying()) {
-      audio.playTrack(audioTrackNumber);
+  // - If sensor is enabled, trigger samples continuously and map sensor average to volume
+  // - If sensor is NOT enabled, trigger samples at random volumes at random intervals
+  updateAudio();
 
-      if(DEBUG)
-        Serial.println("Triggering audio file");
-    }
-  }
 }
 
 /******************************************************************************
@@ -179,7 +193,7 @@ void loop() {
 *   - Checks the distance sensor enable switch for changes
 ******************************************************************************/
 void updateSensor() {
-  if(currentTime > sensorLastUpdate + sensorUpdateInterval) {
+  if(currentTime - sensorLastUpdate >= sensorUpdateInterval) {
     // Check and update enable switch
     updateSensorEnabledSwitch();
     
@@ -245,7 +259,7 @@ void updateSensorEnabledSwitch() {
 *   - It is very important to keep accelerations low to prevent too much torque on motor
 ********************************************************************************************/
 void updateMotor() {
-  if(currentTime > motorLastUpdate + motorUpdateInterval) {
+  if(currentTime - motorLastUpdate >= motorUpdateInterval && motorEnabled) {
     // If sensor is enabled, map live sensor data to target motor speed
     if(sensorEnabled) {      
       if(sensorAverage > sensorMinimumThreshold)
@@ -256,11 +270,17 @@ void updateMotor() {
     // If sensor is NOT enabled, generate new random target speeds at random intervals
     } else {
       // Choose random target speed and new random update interval
-      if(currentTime > motorLastRandomUpdate + motorRandomUpdateInterval) {
+      if(currentTime - motorLastRandomUpdate >= motorRandomUpdateInterval) {
         motorTargetSpeed = (int)random(motorMinSpeed, motorMaxSpeed);
-        motorRandomUpdateInterval = (int)random(motorRandomUpdateLower, motorRandomUpdateUpper);
+        motorRandomUpdateInterval = random(motorRandomUpdateLower, motorRandomUpdateUpper);
 
-        motorLastRandomUpdate = currentTime;
+        if(DEBUG) {
+          Serial.print("New target speed - ");
+          Serial.print(map(motorTargetSpeed, 0, motorMaxSpeed, 0, 100));
+          Serial.println("%");
+        }
+
+        motorLastRandomUpdate = millis();
       }
     }
 
@@ -274,5 +294,49 @@ void updateMotor() {
     analogWrite(motorPwmPin, motorCurrentSpeed);
 
     motorLastUpdate = millis();
+  }
+}
+
+/*****************************************************************
+ * Update audio
+******************************************************************/
+void updateAudio() {
+  if(currentTime - audioLastUpdate >= audioUpdateInterval && audioEnabled) {
+      if(1) {
+//    if(!audio.isPlaying()) {
+      // If sensor is enabled, map distance to volume
+      if(sensorEnabled) {
+        audioVolume = (int)constrain(map(sensorAverage, sensorLowestValue, sensorHighestValue, audioMinVolume, audioMaxVolume), audioMinVolume, audioMaxVolume);
+
+        audioTrackNumber = (int)random(1,audioTracksTotal);
+        audio.setVolume(audioVolume);
+        audio.playTrack(audioTrackNumber);
+
+        if(DEBUG)
+          Serial.println("Triggering audio file");
+        
+      // If sensor is NOT enabled, just use max volume
+      } else {
+        if(currentTime - audioLastRandomUpdate >= audioRandomUpdateInterval) {
+          audioVolume = audioMaxVolume;
+
+          audioTrackNumber = (int)random(1,audioTracksTotal);
+          audio.setVolume(audioVolume);
+          delay(100);
+          audio.playTrack(audioTrackNumber);
+          delay(100);
+
+          if(DEBUG) {
+            Serial.print("Triggering audio file - ");
+            Serial.println(audioTrackNumber);
+          }
+
+          audioRandomUpdateInterval = (int)random(audioRandomUpdateLower, audioRandomUpdateUpper);
+          audioLastRandomUpdate = millis();
+        }
+      }
+
+      audioLastUpdate = millis();
+    }
   }
 }
