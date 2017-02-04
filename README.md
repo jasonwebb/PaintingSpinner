@@ -20,3 +20,7 @@ Arduino-based hardware platform for interactively spinning a painting using a DC
 
 ## Finished and installed
 ![Finished and assembled](docs/assembly/finished-and-installed.jpg)
+
+![Nadia approaching](docs/install/nadia-approach.gif)
+
+![Spinning](docs/install/spinning.jpg)
