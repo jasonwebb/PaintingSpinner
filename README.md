@@ -16,5 +16,7 @@ Arduino-based hardware platform for interactively spinning a painting using a DC
 ![Architecture](docs/architecture.png)
 
 ## Mechanical assembly
+![Assembly](docs/assembly/assembled-iso.png)
 
-![Assembly](docs/assembly/assembly-iso.png)
+## Finished and installed
+![Finished and assembled](docs/assembly/finished-and-installed.jpg)
