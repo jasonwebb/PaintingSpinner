@@ -1,0 +1,1 @@
+As per the [Cytron Easy MP3 shield datasheet](https://github.com/jasonwebb/PaintingSpinner/blob/master/datasheets/Cytron-Easy-MP3-Shield.pdf) (page 11, heading 7.3), place the __MP3__ folder at the root of a USB drive or MicroSD card formatted with FAT16/32.
