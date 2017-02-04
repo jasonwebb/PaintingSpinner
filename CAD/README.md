@@ -52,3 +52,13 @@
 - Allows for use of drive pulley matching output pulley for better torque (at lower speed).
 
 ![Small pulley (14t) to Universal Mounting Hub Adapter](../docs/parts/small-pulley-14t-to-universal-mounting-hub-adapter.png)
+
+## Speaker corner bracket
+- Made to fit metal corner tabs for a particular speaker.
+
+![Speaker corner bracket](../docs/parts/speaker-corner-bracket.png)
+
+## Wire clamp
+- Allows for strain relief for thicker wires, such as the AC power cord and sensor cable. Saves a trip to the hardware store at least.
+
+![Wire clamp](../docs/parts/wire-clamp.png)
