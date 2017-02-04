@@ -12,6 +12,13 @@ Arduino-based hardware platform for interactively spinning a painting using a DC
 - Various custom [3D printed parts](https://github.com/jasonwebb/PaintingSpinner/tree/master/CAD) designed in Fusion 360
 - Various wood screws and angle brackets
 
+## License
+This work is licensed under a [Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International License](http://creativecommons.org/licenses/by-nc-sa/4.0/).
+
+Use this project to learn, tinker and share with friends. All commercial uses are forbidden without express written permission.
+
+[![Creative Commons license](https://i.creativecommons.org/l/by-nc-sa/4.0/88x31.png)](http://creativecommons.org/licenses/by-nc-sa/4.0/)
+
 ## Electronics architecture
 ![Architecture](docs/architecture.png)
 
